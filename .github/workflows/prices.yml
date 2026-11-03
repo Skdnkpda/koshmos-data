@@ -1,0 +1,28 @@
+name: Daily prices
+on:
+  schedule:
+    - cron: "40 16 * * 1-5" # 22:10 IST on weekdays, after markets and most NAVs
+    - cron: "10 3 * * *"    # 08:40 IST daily, picks up late NAVs
+  workflow_dispatch: {}
+permissions:
+  contents: write
+concurrency:
+  group: prices
+  cancel-in-progress: false
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test scripts/parse.test.mjs
+      - run: node scripts/update-prices.mjs
+      - name: Publish if changed
+        run: |
+          git config user.name "koshmos-prices"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add prices
+          if git diff --cached --quiet; then echo "No change"; else git commit -m "Prices $(date -u +%F)" && git push; fi
