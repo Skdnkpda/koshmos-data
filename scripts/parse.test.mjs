@@ -58,3 +58,17 @@ test("Stooq quotes: ticker suffix removed, missing data skipped", () => {
   const csv = "Symbol,Date,Time,Open,High,Low,Close,Volume\nAAPL.US,2026-11-03,22:00:09,230,233,229,232.15,1000\nMSFT.US,2026-11-03,22:00:10,400,410,399,405.5,900\nZZZZ.US,N/D,N/D,N/D,N/D,N/D,N/D,N/D";
   assert.deepEqual(parseStooq(csv), { AAPL: [232.15, "2026-11-03"], MSFT: [405.5, "2026-11-03"] });
 });
+
+import { parseNasdaqScreener, usCloseDate } from "./parse.mjs";
+test("Nasdaq screener rows (stocks and ETF shapes)", () => {
+  const stocks = { data: { rows: [{ symbol: "AAPL", name: "Apple", lastsale: "$232.15" }, { symbol: "BRK/B", lastsale: "$470.10" }, { symbol: "XX", lastsale: "NA" }] } };
+  const etfs = { data: { data: { rows: [{ symbol: "VOO", companyName: "Vanguard S&P 500", lastSalePrice: "$545.20" }] } } };
+  assert.deepEqual(parseNasdaqScreener(stocks, "2026-11-03"), { AAPL: [232.15, "2026-11-03"], "BRK.B": [470.1, "2026-11-03"] });
+  assert.deepEqual(parseNasdaqScreener(etfs, "2026-11-03"), { VOO: [545.2, "2026-11-03"] });
+});
+test("US close date: none while the market is open; previous trading day before the open", () => {
+  assert.equal(usCloseDate(new Date("2026-11-03T16:40:00Z")), null); // Tue 11:40 New York
+  assert.equal(usCloseDate(new Date("2026-11-04T03:10:00Z")), "2026-11-03"); // Tue 22:10 New York
+  assert.equal(usCloseDate(new Date("2026-11-04T12:00:00Z")), "2026-11-03"); // Wed 07:00, before the open
+  assert.equal(usCloseDate(new Date("2026-11-09T12:00:00Z")), "2026-11-06"); // Mon 07:00 → Friday
+});

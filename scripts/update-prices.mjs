@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseAmfi, parseBhavcopy, mergeEquity, parseEcbToInr, parseStooq } from "./parse.mjs";
+import { parseAmfi, parseBhavcopy, mergeEquity, parseEcbToInr, parseNasdaqScreener, usCloseDate } from "./parse.mjs";
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 const OUT = new URL("../prices/", import.meta.url).pathname;
@@ -62,8 +62,6 @@ async function bse() {
   }
   return null;
 }
-/** Popular US ETFs held by Indian investors, on top of the S&P 500. */
-const US_EXTRA = ["SPY", "VOO", "IVV", "VTI", "QQQ", "QQQM", "VT", "VXUS", "VEA", "VWO", "IEMG", "EEM", "SCHD", "VUG", "VGT", "XLK", "SMH", "SOXX", "IWM", "DIA", "ARKK", "GLD", "IAU", "SLV", "TLT", "BND", "AGG", "SHY", "IEF", "VNQ", "JEPI", "JEPQ", "IBIT", "COIN", "MSTR", "PLTR", "ARM", "SHOP", "SNOW", "UBER", "ABNB", "SPOT", "BABA", "TSM", "ASML", "NVO", "SAP", "INFY", "WIT", "HDB", "IBN", "RDY", "MMYT"];
 async function fx() {
   try {
     const map = parseEcbToInr((await get("https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml")).toString("utf8"));
@@ -71,26 +69,23 @@ async function fx() {
   } catch (e) { log("FX failed:", e.message); }
   return null;
 }
+/** Every US-listed stock and ETF with its last price (Nasdaq screener), taken only after the close. */
 async function us() {
-  let tickers = [];
-  try {
-    const csv = (await get("https://raw.githubusercontent.com/datasets/s-and-p-500-companies/main/data/constituents.csv")).toString("utf8");
-    tickers = csv.split(/\r?\n/).slice(1).map((l) => l.split(",")[0]?.trim()).filter((t) => /^[A-Z.\-]{1,6}$/.test(t ?? ""));
-  } catch (e) { log("S&P 500 list failed:", e.message); }
-  tickers = [...new Set([...tickers, ...US_EXTRA])];
-  const toStooq = (t) => t.toLowerCase().replace(/\./g, "-") + ".us";
-  const back = new Map(tickers.map((t) => [t.replace(/\./g, "-"), t]));
+  const date = usCloseDate();
+  if (!date) { log("US market open; keeping the previous US prices"); return null; }
+  const headers = { Accept: "application/json, text/plain, */*", Origin: "https://www.nasdaq.com", Referer: "https://www.nasdaq.com/" };
   const out = {};
-  for (let i = 0; i < tickers.length; i += 40) {
-    const batch = tickers.slice(i, i + 40);
-    const url = `https://stooq.com/q/l/?s=${batch.map(toStooq).join("+")}&f=sd2t2ohlcv&h&e=csv`;
+  for (const url of [
+    "https://api.nasdaq.com/api/screener/stocks?tableonly=true&download=true",
+    "https://api.nasdaq.com/api/screener/etf?tableonly=true&download=true",
+  ]) {
     try {
-      const got = parseStooq((await get(url)).toString("utf8"));
-      for (const [k, v] of Object.entries(got)) out[back.get(k) ?? k] = v;
-    } catch (e) { log("US batch", i, e.message); }
-    await new Promise((r) => setTimeout(r, 400)); // be gentle with the source
+      const got = parseNasdaqScreener(JSON.parse((await get(url, headers)).toString("utf8")), date);
+      log("US", url.includes("etf") ? "ETFs" : "stocks", Object.keys(got).length);
+      Object.assign(out, got);
+    } catch (e) { log("US failed:", url, e.message); }
   }
-  return Object.keys(out).length > 50 ? { map: out, source: "Stooq", asked: tickers.length } : null;
+  return Object.keys(out).length > 1000 ? { map: out, source: "Nasdaq screener", date } : null;
 }
 const read = (f) => (existsSync(OUT + f) ? JSON.parse(readFileSync(OUT + f, "utf8")) : null);
 const latestDate = (map) => Object.values(map).map((v) => v[1]).filter(Boolean).sort().at(-1) ?? "";
@@ -113,7 +108,7 @@ if (rates) {
 }
 if (usq) {
   writeFileSync(OUT + "us.json", JSON.stringify(usq.map));
-  meta.us = { date: latestDate(usq.map), count: Object.keys(usq.map).length, of: usq.asked, source: usq.source };
+  meta.us = { date: usq.date, count: Object.keys(usq.map).length, source: usq.source };
 }
 meta.checked = today;
 meta.note = "Public end-of-day data only, the same for everyone. mf/eq: [price, YYYY-MM-DD(, symbol)] by ISIN; us: [close USD, date] by ticker; fx: [rupees per unit, date] by currency. No user data.";

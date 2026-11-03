@@ -117,3 +117,37 @@ export function parseStooq(csv) {
   }
   return out;
 }
+
+/**
+ * Nasdaq screener download (stocks or ETFs): rows with a symbol and a last price like "$232.15".
+ * The JSON nesting differs between the two endpoints, so the rows array is found wherever it is.
+ */
+export function parseNasdaqScreener(json, date) {
+  const findRows = (o, depth = 0) => {
+    if (!o || typeof o !== "object" || depth > 4) return null;
+    if (Array.isArray(o.rows)) return o.rows;
+    for (const v of Object.values(o)) { const r = findRows(v, depth + 1); if (r) return r; }
+    return null;
+  };
+  const rows = findRows(json) ?? [];
+  const out = {};
+  for (const r of rows) {
+    const sym = String(r.symbol ?? "").trim().toUpperCase();
+    const raw = String(r.lastsale ?? r.lastSalePrice ?? r.lastSale ?? "").replace(/[$,\s]/g, "");
+    const price = Number(raw);
+    if (!/^[A-Z][A-Z0-9.\-^/]{0,9}$/.test(sym) || !Number.isFinite(price) || price <= 0) continue;
+    out[sym.replace(/\//g, ".")] = [price, date];
+  }
+  return out;
+}
+/** US market date for end-of-day prices, or null while the market is open (09:30–16:30 New York). */
+export function usCloseDate(now = new Date()) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23", weekday: "short" }).formatToParts(now).map((p) => [p.type, p.value]));
+  const minutes = Number(parts.hour) * 60 + Number(parts.minute);
+  let d = new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)));
+  const day = d.getUTCDay(); // 0 Sun … 6 Sat (New York date)
+  if (day >= 1 && day <= 5 && minutes >= 9 * 60 + 30 && minutes < 16 * 60 + 30) return null; // market open
+  if (day >= 1 && day <= 5 && minutes < 9 * 60 + 30) d.setUTCDate(d.getUTCDate() - 1); // before open → previous close
+  while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d.setUTCDate(d.getUTCDate() - 1); // weekend → Friday
+  return d.toISOString().slice(0, 10);
+}
