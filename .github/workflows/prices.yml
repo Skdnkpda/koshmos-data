@@ -3,7 +3,12 @@ on:
   schedule:
     - cron: "40 16 * * 1-5" # 22:10 IST on weekdays, after markets and most NAVs
     - cron: "10 3 * * *"    # 08:40 IST daily, picks up late NAVs
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      us_probe:
+        description: "Test the US price source now (logs only, publishes nothing for US)"
+        type: boolean
+        default: false
 permissions:
   contents: write
 concurrency:
@@ -20,6 +25,8 @@ jobs:
           node-version: 22
       - run: node --test scripts/parse.test.mjs
       - run: node scripts/update-prices.mjs
+        env:
+          US_PROBE: ${{ inputs.us_probe }}
       - name: Publish if changed
         run: |
           git config user.name "koshmos-prices"

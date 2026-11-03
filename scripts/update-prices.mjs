@@ -71,7 +71,8 @@ async function fx() {
 }
 /** Every US-listed stock and ETF with its last price (Nasdaq screener), taken only after the close. */
 async function us() {
-  const date = usCloseDate();
+  const probe = process.env.US_PROBE === "true"; // test the source anytime; logs only, never publishes
+  const date = usCloseDate() ?? (probe ? "probe" : null);
   if (!date) { log("US market open; keeping the previous US prices"); return null; }
   const headers = { Accept: "application/json, text/plain, */*", Origin: "https://www.nasdaq.com", Referer: "https://www.nasdaq.com/" };
   const out = {};
@@ -85,6 +86,7 @@ async function us() {
       Object.assign(out, got);
     } catch (e) { log("US failed:", url, e.message); }
   }
+  if (probe) { log("US probe sample:", JSON.stringify(Object.entries(out).filter(([k]) => ["AAPL", "MSFT", "VOO", "BRK.B", "QQQ"].includes(k)))); return null; }
   return Object.keys(out).length > 1000 ? { map: out, source: "Nasdaq screener", date } : null;
 }
 const read = (f) => (existsSync(OUT + f) ? JSON.parse(readFileSync(OUT + f, "utf8")) : null);
