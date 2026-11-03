@@ -1,1 +1,9 @@
-{}
+{
+  "eq": {
+    "date": "2026-11-03",
+    "count": 5377,
+    "source": "NSE + BSE"
+  },
+  "checked": "2026-11-04",
+  "note": "Public end-of-day prices only. Values are [price, YYYY-MM-DD(, symbol)] keyed by ISIN. No user data."
+}
