@@ -5,5 +5,10 @@
     "source": "NSE + BSE"
   },
   "checked": "2026-11-04",
-  "note": "Public end-of-day prices only. Values are [price, YYYY-MM-DD(, symbol)] keyed by ISIN. No user data."
+  "note": "Public end-of-day prices only. Values are [price, YYYY-MM-DD(, symbol)] keyed by ISIN. No user data.",
+  "mf": {
+    "date": "2026-11-03",
+    "count": 17941,
+    "source": "AMFI"
+  }
 }
