@@ -79,3 +79,41 @@ function toIso(v) {
 export function mergeEquity(nse, bse) {
   return { ...bse, ...nse };
 }
+
+/**
+ * ECB daily reference rates (EUR base) → rupees per one unit of each currency.
+ * <Cube time='2026-11-03'><Cube currency='USD' rate='1.0812'/>…<Cube currency='INR' rate='91.20'/>
+ */
+export function parseEcbToInr(xml) {
+  const date = xml.match(/time=['"](\d{4}-\d{2}-\d{2})['"]/)?.[1] ?? "";
+  const rates = { EUR: 1 };
+  for (const m of xml.matchAll(/currency=['"]([A-Z]{3})['"]\s+rate=['"]([\d.]+)['"]/g)) rates[m[1]] = Number(m[2]);
+  const inr = rates.INR;
+  if (!inr || !date) throw new Error("ECB rates without INR or date");
+  const out = {};
+  for (const [cur, perEur] of Object.entries(rates)) {
+    if (cur === "INR" || !(perEur > 0)) continue;
+    out[cur] = [Math.round((inr / perEur) * 10000) / 10000, date];
+  }
+  return out;
+}
+
+/**
+ * Stooq quote CSV: Symbol,Date,Time,Open,High,Low,Close,Volume (symbols like AAPL.US).
+ * Returns { TICKER: [close, "YYYY-MM-DD"] } with the ".US" suffix removed; "N/D" rows skipped.
+ */
+export function parseStooq(csv) {
+  const lines = csv.split(/\r?\n/).filter((l) => l.trim());
+  const head = (lines[0] ?? "").split(",").map((h) => h.trim().toLowerCase());
+  const iSym = head.indexOf("symbol"), iDate = head.indexOf("date"), iClose = head.indexOf("close");
+  if (iSym < 0 || iClose < 0) throw new Error("Stooq columns not found: " + (lines[0] ?? "").slice(0, 120));
+  const out = {};
+  for (const line of lines.slice(1)) {
+    const c = line.split(",").map((x) => x.trim());
+    const close = Number(c[iClose]);
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(c[iDate] ?? "") ? c[iDate] : "";
+    if (!Number.isFinite(close) || close <= 0 || !date) continue;
+    out[(c[iSym] ?? "").toUpperCase().replace(/\.US$/, "")] = [close, date];
+  }
+  return out;
+}

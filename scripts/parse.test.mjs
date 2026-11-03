@@ -47,3 +47,14 @@ test("unknown layouts fail loudly instead of publishing nothing silently", () =>
 test("NSE wins over BSE for the same ISIN", () => {
   assert.deepEqual(mergeEquity({ X: [1, "d", "N"] }, { X: [2, "d", "B"], Y: [3, "d", "B"] }), { X: [1, "d", "N"], Y: [3, "d", "B"] });
 });
+
+import { parseEcbToInr, parseStooq } from "./parse.mjs";
+test("ECB rates become rupees per unit", () => {
+  const xml = `<gesmes:Envelope><Cube><Cube time='2026-11-03'><Cube currency='USD' rate='1.0800'/><Cube currency='GBP' rate='0.8400'/><Cube currency='INR' rate='91.8000'/></Cube></Cube></gesmes:Envelope>`;
+  assert.deepEqual(parseEcbToInr(xml), { EUR: [91.8, "2026-11-03"], USD: [85, "2026-11-03"], GBP: [109.2857, "2026-11-03"] });
+  assert.throws(() => parseEcbToInr("<Cube time='2026-11-03'><Cube currency='USD' rate='1.08'/></Cube>"), /without INR/);
+});
+test("Stooq quotes: ticker suffix removed, missing data skipped", () => {
+  const csv = "Symbol,Date,Time,Open,High,Low,Close,Volume\nAAPL.US,2026-11-03,22:00:09,230,233,229,232.15,1000\nMSFT.US,2026-11-03,22:00:10,400,410,399,405.5,900\nZZZZ.US,N/D,N/D,N/D,N/D,N/D,N/D,N/D";
+  assert.deepEqual(parseStooq(csv), { AAPL: [232.15, "2026-11-03"], MSFT: [405.5, "2026-11-03"] });
+});
