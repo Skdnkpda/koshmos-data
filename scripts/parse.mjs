@@ -8,14 +8,21 @@
 export function parseAmfi(text) {
   const out = {};
   const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
-  for (const line of text.split(/\r?\n/)) {
+  const lines = text.split(/\r?\n/);
+  // Columns are found from the header (AMFI has added "Plan" and "Option" before; it may again).
+  const header = (lines.find((l) => /scheme\s*code/i.test(l)) ?? "").split(";").map((h) => h.trim().toLowerCase());
+  const find = (re, fallback) => { const i = header.findIndex((h) => re.test(h)); return i >= 0 ? i : fallback; };
+  const iNav = find(/net\s*asset\s*value|^nav$/, 4), iDate = find(/^date$/, 5);
+  const iIsins = header.map((h, i) => (/isin/.test(h) ? i : -1)).filter((i) => i >= 0);
+  const isinCols = iIsins.length ? iIsins : [1, 2];
+  for (const line of lines) {
     const c = line.split(";");
-    if (c.length < 6 || !/^\d+$/.test(c[0].trim())) continue;
-    const nav = Number(c[4].trim());
-    const m = c[5].trim().match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/);
+    if (c.length <= Math.max(iNav, iDate) || !/^\d+$/.test((c[0] ?? "").trim())) continue;
+    const nav = Number((c[iNav] ?? "").trim());
+    const m = (c[iDate] ?? "").trim().match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/);
     if (!Number.isFinite(nav) || nav <= 0 || !m) continue;
     const date = `${m[3]}-${String(MONTHS[m[2].toLowerCase()]).padStart(2, "0")}-${m[1].padStart(2, "0")}`;
-    for (const isin of [c[1], c[2]].map((x) => x.trim().toUpperCase()))
+    for (const isin of isinCols.map((i) => (c[i] ?? "").trim().toUpperCase()))
       if (/^IN[A-Z0-9]{10}$/.test(isin)) out[isin] = [nav, date];
   }
   return out;

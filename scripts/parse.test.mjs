@@ -19,6 +19,15 @@ Aditya Birla Sun Life AMC Limited
   });
 });
 
+test("AMFI NAVAll with the newer Plan and Option columns", () => {
+  const text = "Scheme Code;ISIN Div Payout/ ISIN Growth;ISIN Div Reinvestment;Scheme Name;Plan;Option;Net Asset Value;Date\r\n \r\nOpen Ended Schemes(Children\u2019s Fund)\r\n \r\nAxis Mutual Fund\r\n \r\n135762;INF846K01WO1;-;Axis Children's Fund;Direct Plan;Growth Option;29.8188;03-Nov-2026\r\n135765;INF846K01WP8;INF846K01WQ6;Axis Children's Fund;Direct Plan;IDCW Option;27.4685;03-Nov-2026";
+  assert.deepEqual(parseAmfi(text), {
+    INF846K01WO1: [29.8188, "2026-11-03"],
+    INF846K01WP8: [27.4685, "2026-11-03"],
+    INF846K01WQ6: [27.4685, "2026-11-03"],
+  });
+});
+
 test("UDiFF bhavcopy: stocks/ETFs kept, derivatives and odd series skipped", () => {
   const text = `TradDt,BizDt,Sgmt,Src,FinInstrmTp,FinInstrmId,ISIN,TckrSymb,SctySrs,XpryDt,FininstrmActlXpryDt,StrkPric,OptnTp,FinInstrmNm,OpnPric,HghPric,LwPric,ClsPric,LastPric,PrvsClsgPric
 2026-11-03,2026-11-03,CM,NSE,STK,11536,INE467B01029,TCS,EQ,,,,,TATA CONSULTANCY SERV LT,4080,4120,4060,4100.50,4101,4090
