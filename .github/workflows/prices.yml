@@ -23,10 +23,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: node --test scripts/parse.test.mjs
+      - run: node --test scripts/parse.test.mjs scripts/markets.test.mjs
       - run: node scripts/update-prices.mjs
         env:
           US_PROBE: ${{ inputs.us_probe }}
+      - name: Market wrap
+        run: node scripts/update-markets.mjs
+        continue-on-error: true
       - name: Publish if changed
         run: |
           git config user.name "koshmos-prices"
