@@ -2,18 +2,18 @@
 const UA = { "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36", Accept: "*/*" };
 const day = (d) => `${String(d.getUTCDate()).padStart(2, "0")}${String(d.getUTCMonth() + 1).padStart(2, "0")}${d.getUTCFullYear()}`;
 const d = new Date(); d.setUTCDate(d.getUTCDate() - 1); while ([0, 6].includes(d.getUTCDay())) d.setUTCDate(d.getUTCDate() - 1);
+const N = { Origin: "https://www.nasdaq.com", Referer: "https://www.nasdaq.com/" };
 const urls = [
-  [`https://nsearchives.nseindia.com/content/indices/ind_close_all_${day(d)}.csv`, { Referer: "https://www.nseindia.com/" }],
-  ["https://stooq.com/q/d/l/?s=^spx&i=d", {}], ["https://stooq.com/q/d/l/?s=^nkx&i=d", {}], ["https://stooq.com/q/d/l/?s=^hsi&i=d", {}],
-  ["https://stooq.com/q/d/l/?s=^ukx&i=d", {}], ["https://stooq.com/q/d/l/?s=xauusd&i=d", {}], ["https://stooq.com/q/d/l/?s=cb.f&i=d", {}],
-  ["https://stooq.com/q/l/?s=^spx+^nkx+^hsi+^ukx+xauusd+cb.f+usdinr&f=sd2t2ohlc&h&e=csv", {}],
-  ["https://api.nasdaq.com/api/quote/SPX/historical?assetclass=index&fromdate=2026-09-20&limit=60", { Origin: "https://www.nasdaq.com", Referer: "https://www.nasdaq.com/" }],
-  ["https://api.nasdaq.com/api/quote/COMP/historical?assetclass=index&fromdate=2026-09-20&limit=60", { Origin: "https://www.nasdaq.com", Referer: "https://www.nasdaq.com/" }],
-  ["https://api.nasdaq.com/api/quote/INDU/historical?assetclass=index&fromdate=2026-09-20&limit=60", { Origin: "https://www.nasdaq.com", Referer: "https://www.nasdaq.com/" }],
-  ["https://api.nasdaq.com/api/quote/DJIA/info?assetclass=index", { Origin: "https://www.nasdaq.com", Referer: "https://www.nasdaq.com/" }],
-  ["https://api.bseindia.com/BseIndiaAPI/api/GetSensexData/w", { Referer: "https://www.bseindia.com/", Origin: "https://www.bseindia.com" }],
-  ["https://api.bseindia.com/BseIndiaAPI/api/ProduceCSVForDate/w?strIndex=SENSEX&dtFromDate=01/10/2026&dtToDate=06/11/2026", { Referer: "https://www.bseindia.com/" }],
-  ["https://query1.finance.yahoo.com/v8/finance/chart/%5EBSESN?range=3mo&interval=1d", {}],
+  ["https://fred.stlouisfed.org/graph/fredgraph.csv?id=SP500,DJIA,NASDAQCOM,NIKKEI225,DCOILBRENTEU,DEXINUS", {}],
+  ["https://api.nasdaq.com/api/quote/NDX/historical?assetclass=index&fromdate=2026-09-20&limit=60", N],
+  ["https://api.nasdaq.com/api/quote/SPX/info?assetclass=index", N],
+  ["https://api.nasdaq.com/api/quote/GC%3ACMX/historical?assetclass=commodities&fromdate=2026-09-20&limit=60", N],
+  ["https://api.nasdaq.com/api/quote/CL%3ANMX/historical?assetclass=commodities&fromdate=2026-09-20&limit=60", N],
+  ["https://api.nasdaq.com/api/quote/HSI/historical?assetclass=index&fromdate=2026-09-20&limit=60", N],
+  ["https://api.nasdaq.com/api/quote/UKX/historical?assetclass=index&fromdate=2026-09-20&limit=60", N],
+  ["https://www.bseindia.com/Indices/IndexArchiveData.html", { Referer: "https://www.bseindia.com/" }],
+  ["https://www.bseindia.com/download/BhavCopy/Index/Indices_06112026.csv", { Referer: "https://www.bseindia.com/" }],
+  ["https://query2.finance.yahoo.com/v8/finance/chart/%5EBSESN?range=3mo&interval=1d", {}],
 ];
 for (const [u, h] of urls) {
   try {
