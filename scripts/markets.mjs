@@ -72,3 +72,14 @@ export function summarise(hist) {
     spark: pts.slice(-30).map(([, c]) => c),
   };
 }
+
+/** ECB 90-day history XML → [[YYYY-MM-DD, rupees per US dollar]] */
+export function parseEcbUsdInrHistory(xml) {
+  const out = [];
+  for (const m of xml.matchAll(/<Cube time=['"](\d{4}-\d{2}-\d{2})['"]>([\s\S]*?)<\/Cube>/g)) {
+    const usd = Number(/currency=['"]USD['"]\s+rate=['"]([\d.]+)['"]/.exec(m[2])?.[1]);
+    const inr = Number(/currency=['"]INR['"]\s+rate=['"]([\d.]+)['"]/.exec(m[2])?.[1]);
+    if (usd > 0 && inr > 0) out.push([m[1], Math.round((inr / usd) * 10000) / 10000]);
+  }
+  return out.sort(([a], [b]) => a.localeCompare(b));
+}

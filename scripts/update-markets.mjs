@@ -1,7 +1,12 @@
 // Daily market wrap: index closes and 1D/1W/1M/1Y changes, published as prices/markets.json.
 // Public data only, the same for everyone. Each source is independent; a failure keeps its history.
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import { SERIES, parseNseIndices, parseNasdaqHistory, parseCboeHistory, mergeHistory, summarise } from "./markets.mjs";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { SERIES, parseNseIndices, parseNasdaqHistory, parseCboeHistory, mergeHistory, summarise, parseEcbUsdInrHistory } from "./markets.mjs";
+import { parseBhavcopy } from "./parse.mjs";
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 const OUT = new URL("../prices/", import.meta.url).pathname;
@@ -54,6 +59,31 @@ for (const [id, sym] of [["nasdaq", "COMP"], ["nasdaq100", "NDX"]]) {
     hist[id] = mergeHistory(hist[id], pts);
     sources[id] = "Nasdaq";
   } catch (e) { log("Nasdaq", sym, e.message); }
+}
+
+// One-time backfills so 1D/1W/1M work from day one: ECB's 90-day rates, and ~6 weeks of NSE bhavcopies
+// for the gold and silver ETFs. Skipped once enough history has built up.
+if (Object.keys(hist.usdinr ?? {}).length < 20) {
+  try { hist.usdinr = mergeHistory(hist.usdinr, parseEcbUsdInrHistory((await (await get("https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist-90d.xml")).text()))); log("ECB 90-day backfill:", Object.keys(hist.usdinr).length); }
+  catch (e) { log("ECB history:", e.message); }
+}
+if (Object.keys(hist.gold ?? {}).length < 15) {
+  const now = new Date(Date.now() + 5.5 * 3600 * 1000);
+  let read = 0;
+  for (let i = 1; i < 45; i++) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i));
+    if ([0, 6].includes(d.getUTCDay())) continue;
+    const day = d.toISOString().slice(0, 10).replace(/-/g, "");
+    try {
+      const res = await get(`https://nsearchives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_${day}_F_0000.csv.zip`, { Referer: "https://www.nseindia.com/" });
+      const dir = mkdtempSync(join(tmpdir(), "mk-")); const zip = join(dir, "f.zip");
+      writeFileSync(zip, Buffer.from(await res.arrayBuffer()));
+      const map = parseBhavcopy(execFileSync("unzip", ["-p", zip], { maxBuffer: 256 * 1024 * 1024 }).toString("utf8"));
+      for (const [id, isin] of [["gold", "INF204KB17I5"], ["silver", "INF204KC1402"]]) if (map[isin]) hist[id] = mergeHistory(hist[id], [[map[isin][1], map[isin][0]]]);
+      read++;
+    } catch { /* holiday or not published */ }
+  }
+  log("Bhavcopy backfill days:", read);
 }
 
 // Rupee and metals from today's own price files (written by update-prices.mjs just before).
