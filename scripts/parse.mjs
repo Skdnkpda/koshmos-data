@@ -5,7 +5,8 @@
  * "Scheme Code;ISIN Div Payout/ ISIN Growth;ISIN Div Reinvestment;Scheme Name;Net Asset Value;Date"
  * Both ISIN columns map to the same NAV. Returns { ISIN: [nav, "YYYY-MM-DD"] }.
  */
-export function parseAmfi(text) {
+/** `today` (YYYY-MM-DD): NAVs dated after it are AMFI data errors and are skipped. */
+export function parseAmfi(text, today = "9999-12-31") {
   const out = {};
   const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
   const lines = text.split(/\r?\n/);
@@ -22,6 +23,7 @@ export function parseAmfi(text) {
     const m = (c[iDate] ?? "").trim().match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/);
     if (!Number.isFinite(nav) || nav <= 0 || !m) continue;
     const date = `${m[3]}-${String(MONTHS[m[2].toLowerCase()]).padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+    if (date > today) continue;
     for (const isin of isinCols.map((i) => (c[i] ?? "").trim().toUpperCase()))
       if (/^IN[A-Z0-9]{10}$/.test(isin)) out[isin] = [nav, date];
   }

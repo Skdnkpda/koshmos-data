@@ -72,3 +72,8 @@ test("US close date: none while the market is open; previous trading day before 
   assert.equal(usCloseDate(new Date("2026-11-04T12:00:00Z")), "2026-11-03"); // Wed 07:00, before the open
   assert.equal(usCloseDate(new Date("2026-11-09T12:00:00Z")), "2026-11-06"); // Mon 07:00 → Friday
 });
+
+test("AMFI NAVs dated in the future are skipped", () => {
+  const text = "Scheme Code;ISIN Div Payout/ ISIN Growth;ISIN Div Reinvestment;Scheme Name;Net Asset Value;Date\n1;INF000000001;-;A;10.5;05-Nov-2026\n2;INF000000002;-;B;11;08-Nov-2026";
+  assert.deepEqual(parseAmfi(text, "2026-11-06"), { INF000000001: [10.5, "2026-11-05"] });
+});

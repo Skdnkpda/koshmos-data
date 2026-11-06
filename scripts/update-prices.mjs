@@ -34,7 +34,7 @@ async function amfi() {
   for (const url of ["https://portal.amfiindia.com/spages/NAVAll.txt", "https://www.amfiindia.com/spages/NAVAll.txt"]) {
     try {
       const text = (await get(url)).toString("utf8");
-      const map = parseAmfi(text);
+      const map = parseAmfi(text, new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10));
       if (Object.keys(map).length > 1000) return { map, source: url };
       const rows = text.split(/\r?\n/).filter((l) => l.includes(";"));
       log("AMFI file too small from", url, "bytes", text.length, "parsed", Object.keys(map).length, "sample:", JSON.stringify(rows.slice(0, 3)).slice(0, 600), "start:", JSON.stringify(text.slice(0, 200)));
