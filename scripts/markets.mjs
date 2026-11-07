@@ -12,8 +12,12 @@ export const SERIES = [
   { id: "nasdaq", name: "Nasdaq Composite", region: "us" },
   { id: "nasdaq100", name: "Nasdaq-100", region: "us" },
   { id: "usdinr", name: "US dollar", region: "fx", unit: "₹" },
-  { id: "gold", name: "Gold (GOLDBEES)", region: "metal", unit: "₹" },
-  { id: "silver", name: "Silver (SILVERBEES)", region: "metal", unit: "₹" },
+  // IBJA closing rates (₹ per 10 g of 24K gold, ₹ per kg of silver 999). The ETF rows below are
+  // published only when IBJA can't be read, so the app always has gold and silver.
+  { id: "gold10g", name: "Gold 24K, per 10 g", region: "metal", unit: "₹" },
+  { id: "silverkg", name: "Silver 999, per kg", region: "metal", unit: "₹" },
+  { id: "gold", name: "Gold (GOLDBEES)", region: "metal", unit: "₹", fallbackFor: "gold10g" },
+  { id: "silver", name: "Silver (SILVERBEES)", region: "metal", unit: "₹", fallbackFor: "silverkg" },
 ];
 
 /** NSE "ind_close_all_DDMMYYYY.csv" → { lowercased name: { date: YYYY-MM-DD, close } } */
@@ -82,4 +86,28 @@ export function parseEcbUsdInrHistory(xml) {
     if (usd > 0 && inr > 0) out.push([m[1], Math.round((inr / usd) * 10000) / 10000]);
   }
   return out.sort(([a], [b]) => a.localeCompare(b));
+}
+
+/**
+ * IBJA home page → closing (PM) rates for the last 30 days: { gold10g: [[date, ₹/10 g]], silverkg: [[date, ₹/kg]] }.
+ * The page shows two "previous 30 days" tables, AM then PM, each row: date, gold 999/995/916/750/585, silver 999, platinum 999.
+ * We read the page's text, so markup changes don't matter while the table keeps its column order.
+ */
+export function parseIbja(html) {
+  const text = String(html).replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ");
+  const head = /999 995 916 750 585 Silver 999 Platinum 999/g;
+  const starts = [...text.matchAll(head)].map((m) => m.index + m[0].length);
+  if (!starts.length) throw new Error("IBJA table header not found");
+  const block = text.slice(starts.at(-1), starts.at(-1) + 6000).split(/\*|999 995 916/)[0];
+  const gold10g = [], silverkg = [];
+  for (const m of block.matchAll(/(\d{2})\/(\d{2})\/(\d{4})((?:\s+[\d.]+){7})/g)) {
+    const n = m[4].trim().split(/\s+/).map(Number);
+    const date = `${m[3]}-${m[2]}-${m[1]}`;
+    // Sanity bands keep a column shift from ever publishing nonsense.
+    if (n[0] > 10000 && n[0] < 10000000) gold10g.push([date, n[0]]);
+    if (n[5] > 10000 && n[5] < 10000000) silverkg.push([date, n[5]]);
+  }
+  if (!gold10g.length) throw new Error("IBJA rows not found");
+  const asc = (a) => a.sort(([x], [y]) => x.localeCompare(y));
+  return { gold10g: asc(gold10g), silverkg: asc(silverkg) };
 }

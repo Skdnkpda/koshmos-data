@@ -5,7 +5,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { SERIES, parseNseIndices, parseNasdaqHistory, parseCboeHistory, mergeHistory, summarise, parseEcbUsdInrHistory } from "./markets.mjs";
+import { SERIES, parseIbja, parseNseIndices, parseNasdaqHistory, parseCboeHistory, mergeHistory, summarise, parseEcbUsdInrHistory } from "./markets.mjs";
 import { parseBhavcopy } from "./parse.mjs";
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
@@ -91,12 +91,21 @@ const fx = readJson(OUT + "fx.json", {}), eq = readJson(OUT + "eq.json", {});
 if (fx.USD) { hist.usdinr = mergeHistory(hist.usdinr, [[fx.USD[1], fx.USD[0]]]); sources.usdinr = "ECB"; }
 for (const [id, isin] of [["gold", "INF204KB17I5"], ["silver", "INF204KC1402"]]) if (eq[isin]) { hist[id] = mergeHistory(hist[id], [[eq[isin][1], eq[isin][0]]]); sources[id] = "NSE/BSE"; }
 
-const series = SERIES.map((s) => { const sum = summarise(hist[s.id]); return sum ? { id: s.id, name: s.name, region: s.region, ...(s.unit ? { unit: s.unit } : {}), ...sum } : null; }).filter(Boolean);
+// Gold and silver in rupees: IBJA's published closing rates, 30 days per read (fills history from day one).
+try {
+  const { gold10g, silverkg } = parseIbja(await (await get("https://ibjarates.com/")).text());
+  hist.gold10g = mergeHistory(hist.gold10g, gold10g); sources.gold10g = "IBJA";
+  if (silverkg.length) { hist.silverkg = mergeHistory(hist.silverkg, silverkg); sources.silverkg = "IBJA"; }
+  log("IBJA:", gold10g.at(-1), silverkg.at(-1));
+} catch (e) { log("IBJA:", e.message); }
+
+const fresh = (id) => sources[id] && hist[id];
+const series = SERIES.filter((s) => !s.fallbackFor || !fresh(s.fallbackFor)).map((s) => { const sum = summarise(hist[s.id]); return sum ? { id: s.id, name: s.name, region: s.region, ...(s.unit ? { unit: s.unit } : {}), ...sum } : null; }).filter(Boolean);
 writeFileSync(HIST, JSON.stringify(hist));
 if (series.length) {
   writeFileSync(OUT + "markets.json", JSON.stringify({
     updated: new Date().toISOString().slice(0, 10),
-    note: "Public end-of-day index levels and changes (%), the same for everyone. Sources: NSE, Cboe, Nasdaq, ECB. No user data.",
+    note: "Public end-of-day index levels and changes (%), the same for everyone. Sources: NSE, Cboe, Nasdaq, ECB, IBJA (gold and silver, without GST). No user data.",
     sources, series,
   }));
   log("markets.json:", series.map((s) => `${s.id} ${s.date} ${s.close} ${s.d1}%`).join(" · "));

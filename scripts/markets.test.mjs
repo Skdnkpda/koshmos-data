@@ -26,3 +26,17 @@ test("ECB history to rupees per dollar", () => {
   const xml = "<Cube><Cube time='2026-11-05'><Cube currency='USD' rate='1.08'/><Cube currency='INR' rate='97.2'/></Cube><Cube time='2026-11-04'><Cube currency='USD' rate='1.10'/><Cube currency='INR' rate='96.8'/></Cube></Cube>";
   assert.deepEqual(parseEcbUsdInrHistory(xml), [["2026-11-04", 88], ["2026-11-05", 90]]);
 });
+
+test("IBJA closing rates", async () => {
+  const { parseIbja } = await import("./markets.mjs");
+  const page = `<div>Purity AM PM</div><p>Previous 30 Days</p><table><tr><th>999</th><th>995</th><th>916</th><th>750</th><th>585</th><th>Silver 999</th><th>Platinum 999</th></tr>
+  <tr><td>06/11/2026</td><td>141023</td><td>140458</td><td>129177</td><td>105767</td><td>82498</td><td>181863</td><td>56650</td></tr></table>
+  <table><tr><th>999</th><th>995</th><th>916</th><th>750</th><th>585</th><th>Silver 999</th><th>Platinum 999</th></tr>
+  <tr><td>06/11/2026</td><td>141452</td><td>140886</td><td>129570</td><td>106089</td><td>82749</td><td>182868</td><td>55707</td></tr>
+  <tr><td>05/11/2026</td><td>144129</td><td>143552</td><td>132022</td><td>108097</td><td>84315</td><td>187300</td><td>56863</td></tr></table>
+  <p>*Gold rates per 10gm &amp; Silver rate per 1kg</p><p>04/11/2026 1 2 3 4 5 6 7</p>`;
+  const r = parseIbja(page);
+  assert.deepEqual(r.gold10g, [["2026-11-05", 144129], ["2026-11-06", 141452]]);
+  assert.deepEqual(r.silverkg, [["2026-11-05", 187300], ["2026-11-06", 182868]]);
+  assert.throws(() => parseIbja("<p>maintenance</p>"), /not found/);
+});
