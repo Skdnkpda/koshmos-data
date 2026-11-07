@@ -1,17 +1,11 @@
-// One-off probe: can the runner read IBJA and MCX daily? Prints status and snippets only.
-const UA = { "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36", accept: "text/html,application/json,*/*" };
-async function show(label, url, init = {}) {
-  try {
-    const r = await fetch(url, { ...init, headers: { ...UA, ...(init.headers || {}) }, signal: AbortSignal.timeout(20000) });
-    const t = await r.text();
-    console.log(`\n=== ${label} ${r.status} ${r.headers.get("content-type")} len=${t.length}`);
-    return t;
-  } catch (e) { console.log(`\n=== ${label} ERROR ${e.message}`); return ""; }
-}
-const ibja = await show("IBJA home", "https://ibjarates.com/");
-for (const m of ibja.matchAll(/id="(lbl[^"]*|[^"]*(?:rate|Rate|gold|Gold|silver|Silver)[^"]*)"[^>]*>([^<]{1,40})</g)) console.log("ibja", m[1], "=>", m[2].trim());
-const idx = ibja.search(/999/); if (idx > 0) console.log("ibja near 999:", ibja.slice(idx - 300, idx + 600).replace(/\s+/g, " "));
-const mw = await show("MCX market watch", "https://www.mcxindia.com/backpage.aspx/GetMarketWatch", { method: "POST", headers: { "content-type": "application/json", referer: "https://www.mcxindia.com/market-data/market-watch" }, body: "{}" });
-try { const j = JSON.parse(mw); const rows = (j.d?.Data ?? []).filter((x) => /^(GOLD|SILVER)$/.test(x.Symbol)); console.log("mcx rows", JSON.stringify(rows.slice(0, 4))); } catch { console.log("mcx body:", mw.slice(0, 400)); }
-const bc = await show("MCX bhavcopy page", "https://www.mcxindia.com/market-data/bhavcopy");
-console.log("bhav snippet:", bc.slice(0, 300).replace(/\s+/g, " "));
+const UA = { "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36" };
+const r = await fetch("https://ibjarates.com/", { headers: UA });
+const t = await r.text();
+const flat = t.replace(/<script[\s\S]*?<\/script>/g, " ").replace(/<style[\s\S]*?<\/style>/g, " ");
+// Elements with ids and short text
+for (const m of flat.matchAll(/<(\w+)[^>]*\bid="([^"]+)"[^>]*>\s*([^<]{1,60})</g)) if (/\d/.test(m[3])) console.log("ID", m[2], "=>", m[3].trim());
+// Text around Silver and dates
+const text = flat.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ");
+for (const k of ["Silver", "SILVER", "Gold 999", "Rates for", "Date", "AM", "PM"]) { let i = -1, n = 0; while ((i = text.indexOf(k, i + 1)) >= 0 && n++ < 4) console.log("TXT", k, "::", text.slice(Math.max(0, i - 120), i + 200)); }
+// Scripts that fetch rates
+for (const m of t.matchAll(/(url\s*:\s*["'][^"']+["']|fetch\(["'][^"']+["']|\$\.(?:get|post|ajax)\(["'][^"']+["'])/g)) console.log("JS", m[1]);
