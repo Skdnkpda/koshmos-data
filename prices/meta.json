@@ -7,8 +7,8 @@
   "checked": "2026-11-07",
   "note": "Public end-of-day data only, the same for everyone. mf/eq: [price, YYYY-MM-DD(, symbol)] by ISIN; us: [close USD, date] by ticker; fx: [rupees per unit, date] by currency. No user data.",
   "mf": {
-    "date": "2026-11-06",
-    "count": 17943,
+    "date": "2026-11-07",
+    "count": 17874,
     "source": "AMFI"
   },
   "fx": {
@@ -17,8 +17,8 @@
     "source": "ECB"
   },
   "us": {
-    "date": "2026-11-05",
-    "count": 12484,
+    "date": "2026-11-06",
+    "count": 12591,
     "source": "Nasdaq screener"
   }
 }
