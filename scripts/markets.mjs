@@ -3,6 +3,7 @@
 /** The series shown in the app, in order. `nse` names match the NSE index file (case-insensitive). */
 export const SERIES = [
   { id: "nifty50", name: "Nifty 50", region: "in", nse: "Nifty 50" },
+  { id: "sensex", name: "Sensex", region: "in" },
   { id: "niftybank", name: "Nifty Bank", region: "in", nse: "Nifty Bank" },
   { id: "niftyit", name: "Nifty IT", region: "in", nse: "Nifty IT" },
   { id: "midcap150", name: "Nifty Midcap 150", region: "in", nse: "Nifty Midcap 150" },
@@ -110,4 +111,19 @@ export function parseIbja(html) {
   if (!gold10g.length) throw new Error("IBJA rows not found");
   const asc = (a) => a.sort(([x], [y]) => x.localeCompare(y));
   return { gold10g: asc(gold10g), silverkg: asc(silverkg) };
+}
+
+/** BSE index CSV ("Date,Open,High,Low,Close" with dates like 6-November-2026) → [[YYYY-MM-DD, close]]. */
+export function parseBseIndexCsv(text) {
+  const M = ["january","february","march","april","may","june","july","august","september","october","november","december"];
+  const out = [];
+  for (const line of String(text).split(/\r?\n/).slice(1)) {
+    const [d, , , , c] = line.split(",");
+    const m = /^(\d{1,2})-([a-z]+)-(\d{4})$/i.exec((d ?? "").trim());
+    const close = Number(c);
+    const mi = m ? M.indexOf(m[2].toLowerCase()) : -1;
+    if (!m || mi < 0 || !(close > 0)) continue;
+    out.push([`${m[3]}-${String(mi + 1).padStart(2, "0")}-${m[1].padStart(2, "0")}`, close]);
+  }
+  return out.sort(([a], [b]) => a.localeCompare(b));
 }

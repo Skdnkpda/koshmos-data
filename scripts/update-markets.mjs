@@ -5,7 +5,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { SERIES, parseIbja, parseNseIndices, parseNasdaqHistory, parseCboeHistory, mergeHistory, summarise, parseEcbUsdInrHistory } from "./markets.mjs";
+import { SERIES, parseBseIndexCsv, parseIbja, parseNseIndices, parseNasdaqHistory, parseCboeHistory, mergeHistory, summarise, parseEcbUsdInrHistory } from "./markets.mjs";
 import { parseBhavcopy } from "./parse.mjs";
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
@@ -44,6 +44,19 @@ const sources = {};
     } catch (e) { if (i < 4) log("NSE", nseDay(d), e.message); }
   }
   log("NSE files read:", got);
+}
+
+// India: Sensex from BSE's index CSV, a year at a time on the first run, then the last two weeks.
+{
+  const fmt = (d) => `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}/${d.getUTCFullYear()}`;
+  const days = Object.keys(hist.sensex ?? {}).length < 200 ? 380 : 14;
+  try {
+    const url = `https://api.bseindia.com/BseIndiaAPI/api/ProduceCSVForDate/w?strIndex=SENSEX&dtFromDate=${fmt(new Date(Date.now() - days * 86400000))}&dtToDate=${fmt(new Date())}`;
+    const pts = parseBseIndexCsv(await (await get(url, { Referer: "https://www.bseindia.com/", Origin: "https://www.bseindia.com" })).text());
+    if (!pts.length) throw new Error("no rows");
+    hist.sensex = mergeHistory(hist.sensex, pts);
+    sources.sensex = "BSE";
+  } catch (e) { log("BSE Sensex:", e.message); }
 }
 
 // US: Cboe (S&P 500) and Nasdaq (Composite, Nasdaq-100), each with recent history.
@@ -105,7 +118,7 @@ writeFileSync(HIST, JSON.stringify(hist));
 if (series.length) {
   writeFileSync(OUT + "markets.json", JSON.stringify({
     updated: new Date().toISOString().slice(0, 10),
-    note: "Public end-of-day index levels and changes (%), the same for everyone. Sources: NSE, Cboe, Nasdaq, ECB, IBJA (gold and silver, without GST). No user data.",
+    note: "Public end-of-day index levels and changes (%), the same for everyone. Sources: NSE, BSE, Cboe, Nasdaq, ECB, IBJA (gold and silver, without GST). No user data.",
     sources, series,
   }));
   log("markets.json:", series.map((s) => `${s.id} ${s.date} ${s.close} ${s.d1}%`).join(" · "));

@@ -40,3 +40,9 @@ test("IBJA closing rates", async () => {
   assert.deepEqual(r.silverkg, [["2026-11-05", 187300], ["2026-11-06", 182868]]);
   assert.throws(() => parseIbja("<p>maintenance</p>"), /not found/);
 });
+
+test("BSE Sensex CSV", async () => {
+  const { parseBseIndexCsv } = await import("./markets.mjs");
+  const csv = "Date,Open,High,Low,Close\n2-November-2026,75178.24,75692.78,74978.12,75692.78\n6-November-2026,79413.66,81028.02,79016.05,81028.02\nbad,line\n";
+  assert.deepEqual(parseBseIndexCsv(csv), [["2026-11-02", 75692.78], ["2026-11-06", 81028.02]]);
+});
