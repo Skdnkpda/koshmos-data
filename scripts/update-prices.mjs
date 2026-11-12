@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseAmfi, parseBhavcopy, mergeEquity, parseEcbToInr, parseNasdaqScreener, usCloseDate } from "./parse.mjs";
+import { parseAmfi, parseAmfiNames, parseBhavcopy, mergeEquity, parseEcbToInr, parseNasdaqScreener, usCloseDate } from "./parse.mjs";
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 const OUT = new URL("../prices/", import.meta.url).pathname;
@@ -35,7 +35,7 @@ async function amfi() {
     try {
       const text = (await get(url)).toString("utf8");
       const map = parseAmfi(text, new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10));
-      if (Object.keys(map).length > 1000) return { map, source: url };
+      if (Object.keys(map).length > 1000) return { map, names: parseAmfiNames(text), source: url };
       const rows = text.split(/\r?\n/).filter((l) => l.includes(";"));
       log("AMFI file too small from", url, "bytes", text.length, "parsed", Object.keys(map).length, "sample:", JSON.stringify(rows.slice(0, 3)).slice(0, 600), "start:", JSON.stringify(text.slice(0, 200)));
     } catch (e) { log("AMFI failed:", e.message); }
@@ -97,6 +97,9 @@ const meta = read("meta.json") ?? {};
 const today = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
 if (mf) {
   writeFileSync(OUT + "mf.json", JSON.stringify(mf.map));
+  // Fund names change rarely: rewrite the file only when they do, so history stays small.
+  const names = JSON.stringify(mf.names);
+  if (Object.keys(mf.names).length > 1000 && (!existsSync(OUT + "mf-names.json") || readFileSync(OUT + "mf-names.json", "utf8") !== names)) writeFileSync(OUT + "mf-names.json", names);
   meta.mf = { date: latestDate(mf.map), count: Object.keys(mf.map).length, source: "AMFI" };
 }
 if (n || b) {

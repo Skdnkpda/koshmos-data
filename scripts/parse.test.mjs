@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseAmfi, parseBhavcopy, mergeEquity } from "./parse.mjs";
+import { parseAmfi, parseAmfiNames, parseBhavcopy, mergeEquity } from "./parse.mjs";
 
 test("AMFI NAVAll: both ISIN columns, section headings ignored", () => {
   const text = `Scheme Code;ISIN Div Payout/ ISIN Growth;ISIN Div Reinvestment;Scheme Name;Net Asset Value;Date
@@ -76,4 +76,18 @@ test("US close date: none while the market is open; previous trading day before 
 test("AMFI NAVs dated in the future are skipped", () => {
   const text = "Scheme Code;ISIN Div Payout/ ISIN Growth;ISIN Div Reinvestment;Scheme Name;Net Asset Value;Date\n1;INF000000001;-;A;10.5;05-Nov-2026\n2;INF000000002;-;B;11;08-Nov-2026";
   assert.deepEqual(parseAmfi(text, "2026-11-06"), { INF000000001: [10.5, "2026-11-05"] });
+});
+
+test("AMFI scheme names by ISIN, both ISIN columns", () => {
+  const text = `Scheme Code;ISIN Div Payout/ ISIN Growth;ISIN Div Reinvestment;Scheme Name;Net Asset Value;Date
+
+Open Ended Schemes(Equity Scheme - Flexi Cap Fund)
+
+122639;INF879O01027;-;Parag Parikh Flexi Cap Fund - Direct Plan - Growth;87.1234;03-Nov-2026
+119551;INF209K01AJ8;INF209K01AK6;Aditya Birla Sun Life  Liquid Fund - IDCW;12.5;03-Nov-2026`;
+  assert.deepEqual(parseAmfiNames(text), {
+    INF879O01027: "Parag Parikh Flexi Cap Fund - Direct Plan - Growth",
+    INF209K01AJ8: "Aditya Birla Sun Life Liquid Fund - IDCW",
+    INF209K01AK6: "Aditya Birla Sun Life Liquid Fund - IDCW",
+  });
 });

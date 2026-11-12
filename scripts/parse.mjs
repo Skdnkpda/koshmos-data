@@ -30,6 +30,28 @@ export function parseAmfi(text, today = "9999-12-31") {
   return out;
 }
 
+/**
+ * Scheme names from the same AMFI file: { ISIN: "Scheme Name" }. Lets the app suggest the right
+ * fund code for a holding typed in or read from a screenshot by name. Public data only.
+ */
+export function parseAmfiNames(text) {
+  const out = {};
+  const lines = text.split(/\r?\n/);
+  const header = (lines.find((l) => /scheme\s*code/i.test(l)) ?? "").split(";").map((h) => h.trim().toLowerCase());
+  const iName = Math.max(0, header.findIndex((h) => /scheme\s*name/.test(h)));
+  const iIsins = header.map((h, i) => (/isin/.test(h) ? i : -1)).filter((i) => i >= 0);
+  const isinCols = iIsins.length ? iIsins : [1, 2];
+  for (const line of lines) {
+    const c = line.split(";");
+    if (!/^\d+$/.test((c[0] ?? "").trim())) continue;
+    const name = (c[iName || 3] ?? "").trim().replace(/\s+/g, " ");
+    if (!name) continue;
+    for (const isin of isinCols.map((i) => (c[i] ?? "").trim().toUpperCase()))
+      if (/^IN[A-Z0-9]{10}$/.test(isin)) out[isin] = name;
+  }
+  return out;
+}
+
 /** Split a CSV line (no embedded newlines in these files). */
 function cells(line) {
   const out = [];

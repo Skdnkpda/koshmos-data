@@ -3,6 +3,7 @@
 Public data the Koshmos app downloads. **No user data is ever stored or sent here.**
 
 - `prices/mf.json` — mutual fund NAVs by ISIN, from AMFI: `{ "ISIN": [nav, "YYYY-MM-DD"] }`
+- `prices/mf-names.json` — mutual fund scheme names by ISIN, from the same AMFI file: `{ "ISIN": "Scheme name" }` (rewritten only when names change); lets the app suggest a fund's code from its name
 - `prices/eq.json` — stock/ETF closing prices by ISIN, from NSE (BSE fills gaps): `{ "ISIN": [close, "YYYY-MM-DD", "SYMBOL"] }`
 - `prices/us.json` — US stock/ETF closing prices in USD by ticker (all US-listed stocks and ETFs), from the Nasdaq screener, taken after the US close: `{ "AAPL": [close, "YYYY-MM-DD"] }`
 - `prices/fx.json` — rupees per unit of each currency, from the ECB reference rates: `{ "USD": [85.1, "YYYY-MM-DD"] }`
