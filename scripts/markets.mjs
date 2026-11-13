@@ -80,6 +80,14 @@ export function summarise(hist) {
   };
 }
 
+/** Fill the w1/m1/y1 changes a series can't work out yet from a stand-in series (e.g. an ETF that tracks it); `proxied` lists which. */
+export function fillChanges(sum, stand) {
+  if (!sum || !stand) return sum;
+  const proxied = ["w1", "m1", "y1"].filter((k) => sum[k] == null && stand[k] != null);
+  if (!proxied.length) return sum;
+  return { ...sum, ...Object.fromEntries(proxied.map((k) => [k, stand[k]])), proxied };
+}
+
 /** ECB 90-day history XML → [[YYYY-MM-DD, rupees per US dollar]] */
 export function parseEcbUsdInrHistory(xml) {
   const out = [];

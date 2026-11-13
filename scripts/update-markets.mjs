@@ -5,7 +5,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { SERIES, parseBseIndexCsv, parseIbja, parseNseIndices, parseNasdaqHistory, parseCboeHistory, mergeHistory, summarise, parseEcbUsdInrHistory } from "./markets.mjs";
+import { SERIES, parseBseIndexCsv, parseIbja, parseNseIndices, parseNasdaqHistory, parseCboeHistory, mergeHistory, summarise, fillChanges, parseEcbUsdInrHistory } from "./markets.mjs";
 import { parseBhavcopy } from "./parse.mjs";
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
@@ -23,27 +23,36 @@ const nseDay = (d) => `${String(d.getUTCDate()).padStart(2, "0")}${String(d.getU
 const hist = readJson(HIST, {});
 const sources = {};
 
-// India: NSE's daily index file. First run backfills about 6 weeks of weekdays.
-{
+// India: NSE's daily index file. Until there is a year of history (so 1Y works), missing weekdays
+// back to ~370 days are filled in, a few files at a time; after that only the last week is read.
+const weekdaysBack = (span) => {
   const now = new Date(Date.now() + 5.5 * 3600 * 1000);
-  const haveDays = Object.keys(hist.nifty50 ?? {}).length;
-  const span = haveDays < 20 ? 45 : 6;
-  let got = 0;
+  const out = [];
   for (let i = 0; i < span; i++) {
     const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i));
-    if ([0, 6].includes(d.getUTCDay())) continue;
+    if (![0, 6].includes(d.getUTCDay())) out.push(d);
+  }
+  return out;
+};
+const needsYear = (id) => { const days = Object.keys(hist[id] ?? {}).sort(); return !days.length || days[0] > new Date(Date.now() - 360 * 86400000).toISOString().slice(0, 10); };
+async function inBatches(items, size, fn) { for (let i = 0; i < items.length; i += size) await Promise.all(items.slice(i, i + size).map(fn)); }
+{
+  const have = new Set(Object.keys(hist.nifty50 ?? {}));
+  const days = needsYear("nifty50") ? weekdaysBack(372).filter((d, i) => i < 6 || !have.has(d.toISOString().slice(0, 10))) : weekdaysBack(8);
+  let got = 0, warned = false;
+  await inBatches(days, 6, async (d) => {
     const url = `https://nsearchives.nseindia.com/content/indices/ind_close_all_${nseDay(d)}.csv`;
     try {
       const rows = parseNseIndices(await (await get(url, { Referer: "https://www.nseindia.com/" })).text());
       for (const s of SERIES.filter((x) => x.nse)) {
         const r = rows[s.nse.toLowerCase()];
         if (r) hist[s.id] = mergeHistory(hist[s.id], [[r.date, r.close]]);
-        else if (got === 0) log("NSE: no row for", s.nse, "names include:", Object.keys(rows).slice(0, 80).join(" | "));
+        else if (!warned) { warned = true; log("NSE: no row for", s.nse, "names include:", Object.keys(rows).slice(0, 80).join(" | ")); }
       }
       got++; sources.in = "NSE";
-    } catch (e) { if (i < 4) log("NSE", nseDay(d), e.message); }
-  }
-  log("NSE files read:", got);
+    } catch { /* holiday or not published yet */ }
+  });
+  log("NSE files read:", got, "of", days.length);
 }
 
 // India: Sensex from BSE's index CSV, a year at a time on the first run, then the last two weeks.
@@ -82,16 +91,18 @@ for (const [id, sym] of [["nasdaq", "COMP"], ["nasdaq100", "NDX"]]) {
 
 // One-time backfills so 1D/1W/1M work from day one: ECB's 90-day rates, and ~6 weeks of NSE bhavcopies
 // for the gold and silver ETFs. Skipped once enough history has built up.
-if (Object.keys(hist.usdinr ?? {}).length < 20) {
-  try { hist.usdinr = mergeHistory(hist.usdinr, parseEcbUsdInrHistory((await (await get("https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist-90d.xml")).text()))); log("ECB 90-day backfill:", Object.keys(hist.usdinr).length); }
+if (needsYear("usdinr")) {
+  // ECB's full history file (one download), trimmed to the last ~400 days by mergeHistory.
+  try { hist.usdinr = mergeHistory(hist.usdinr, parseEcbUsdInrHistory((await (await get("https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.xml")).text())).slice(-400)); log("ECB backfill:", Object.keys(hist.usdinr).length); }
   catch (e) { log("ECB history:", e.message); }
 }
-if (Object.keys(hist.gold ?? {}).length < 15) {
-  const now = new Date(Date.now() + 5.5 * 3600 * 1000);
+if (needsYear("gold") || needsYear("silver")) {
+  // A year of NSE bhavcopies for the gold and silver ETFs, read once; their changes stand in for
+  // IBJA's where IBJA's own history is still too short (see below).
+  const have = new Set(Object.keys(hist.gold ?? {}));
+  const days = weekdaysBack(372).slice(1).filter((d) => !have.has(d.toISOString().slice(0, 10)));
   let read = 0;
-  for (let i = 1; i < 45; i++) {
-    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i));
-    if ([0, 6].includes(d.getUTCDay())) continue;
+  await inBatches(days, 4, async (d) => {
     const day = d.toISOString().slice(0, 10).replace(/-/g, "");
     try {
       const res = await get(`https://nsearchives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_${day}_F_0000.csv.zip`, { Referer: "https://www.nseindia.com/" });
@@ -101,8 +112,8 @@ if (Object.keys(hist.gold ?? {}).length < 15) {
       for (const [id, isin] of [["gold", "INF204KB17I5"], ["silver", "INF204KC1402"]]) if (map[isin]) hist[id] = mergeHistory(hist[id], [[map[isin][1], map[isin][0]]]);
       read++;
     } catch { /* holiday or not published */ }
-  }
-  log("Bhavcopy backfill days:", read);
+  });
+  log("Bhavcopy backfill days:", read, "of", days.length);
 }
 
 // Rupee and metals from today's own price files (written by update-prices.mjs just before).
@@ -119,12 +130,18 @@ try {
 } catch (e) { log("IBJA:", e.message); }
 
 const fresh = (id) => sources[id] && hist[id];
-const series = SERIES.filter((s) => !s.fallbackFor || !fresh(s.fallbackFor)).map((s) => { const sum = summarise(hist[s.id]); return sum ? { id: s.id, name: s.name, region: s.region, ...(s.unit ? { unit: s.unit } : {}), ...sum } : null; }).filter(Boolean);
+const series = SERIES.filter((s) => !s.fallbackFor || !fresh(s.fallbackFor)).map((s) => {
+  let sum = summarise(hist[s.id]);
+  // IBJA rows: until IBJA's own history covers a period, use the matching ETF's change for it.
+  const proxy = { gold10g: "gold", silverkg: "silver" }[s.id];
+  if (sum && proxy) sum = fillChanges(sum, summarise(hist[proxy]));
+  return sum ? { id: s.id, name: s.name, region: s.region, ...(s.unit ? { unit: s.unit } : {}), ...sum } : null;
+}).filter(Boolean);
 writeFileSync(HIST, JSON.stringify(hist));
 if (series.length) {
   writeFileSync(OUT + "markets.json", JSON.stringify({
     updated: new Date().toISOString().slice(0, 10),
-    note: "Public end-of-day index levels and changes (%), the same for everyone. Sources: NSE, BSE, Cboe (S&P 500; Dow from DJX × 100), Nasdaq, ECB, IBJA (gold and silver, without GST). No user data.",
+    note: "Public end-of-day index levels and changes (%), the same for everyone. Sources: NSE, BSE, Cboe (S&P 500; Dow from DJX × 100), Nasdaq, ECB, IBJA (gold and silver, without GST; 1M/1Y changes from the gold and silver ETFs until IBJA history covers them). No user data.",
     sources, series,
   }));
   log("markets.json:", series.map((s) => `${s.id} ${s.date} ${s.close} ${s.d1}%`).join(" · "));

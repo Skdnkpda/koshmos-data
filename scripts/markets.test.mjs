@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseNseIndices, parseNasdaqHistory, parseCboeHistory, mergeHistory, summarise, parseEcbUsdInrHistory } from "./markets.mjs";
+import { parseNseIndices, parseNasdaqHistory, parseCboeHistory, mergeHistory, summarise, fillChanges, parseEcbUsdInrHistory } from "./markets.mjs";
 
 test("NSE index file", () => {
   const csv = "Index Name,Index Date,Open Index Value,High Index Value,Low Index Value,Closing Index Value,Points Change,Change(%)\nNifty 50,05-11-2026,24378.05,24579.9,24296.3,24536.6,576.0,2.4\nIndia VIX,05-11-2026,1,1,1,14.2,0,0\nBad,xx,1,1,1,-,0,0";
@@ -47,4 +47,12 @@ test("BSE Sensex CSV", async () => {
   const { parseBseIndexCsv } = await import("./markets.mjs");
   const csv = "Date,Open,High,Low,Close\n2-November-2026,75178.24,75692.78,74978.12,75692.78\n6-November-2026,79413.66,81028.02,79016.05,81028.02\nbad,line\n";
   assert.deepEqual(parseBseIndexCsv(csv), [["2026-11-02", 75692.78], ["2026-11-06", 81028.02]]);
+});
+
+test("IBJA rows borrow the ETF's change only where their own history is too short", () => {
+  const own = { date: "2026-11-12", close: 137692, d1: -2.07, w1: -4.47, m1: null, y1: null, spark: [] };
+  const etf = { date: "2026-11-12", close: 110, d1: -2, w1: -4.2, m1: 3.1, y1: 41.5, spark: [] };
+  assert.deepEqual(fillChanges(own, etf), { ...own, m1: 3.1, y1: 41.5, proxied: ["m1", "y1"] });
+  assert.equal(fillChanges(etf, own), etf);
+  assert.equal(fillChanges(own, null), own);
 });
