@@ -10,6 +10,8 @@ export const SERIES = [
   { id: "smallcap250", name: "Nifty Smallcap 250", region: "in", nse: "Nifty Smallcap 250" },
   { id: "indiavix", name: "India VIX", region: "in", nse: "India VIX" },
   { id: "sp500", name: "S&P 500", region: "us" },
+  // Dow Jones Industrial Average, from Cboe's DJX (exactly 1/100 of the Dow), scaled back up.
+  { id: "dow", name: "Dow Jones", region: "us" },
   { id: "nasdaq", name: "Nasdaq Composite", region: "us" },
   { id: "nasdaq100", name: "Nasdaq-100", region: "us" },
   { id: "usdinr", name: "US dollar", region: "fx", unit: "₹" },
@@ -48,8 +50,8 @@ export function parseNasdaqHistory(json) {
 }
 
 /** Cboe historical JSON → last `keep` [[YYYY-MM-DD, close]] */
-export function parseCboeHistory(json, keep = 400) {
-  return (json?.data ?? []).map((r) => [String(r.date), Number(r.close)]).filter(([d, c]) => /^\d{4}-\d{2}-\d{2}$/.test(d) && c > 0).slice(-keep);
+export function parseCboeHistory(json, keep = 400, scale = 1) {
+  return (json?.data ?? []).map((r) => [String(r.date), Number(r.close) * scale]).filter(([d, c]) => /^\d{4}-\d{2}-\d{2}$/.test(d) && c > 0).slice(-keep);
 }
 
 /** Add points to a { date: close } history and keep the newest `keep` days. */

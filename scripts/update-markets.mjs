@@ -59,11 +59,17 @@ const sources = {};
   } catch (e) { log("BSE Sensex:", e.message); }
 }
 
-// US: Cboe (S&P 500) and Nasdaq (Composite, Nasdaq-100), each with recent history.
+// US: Cboe (S&P 500, Dow) and Nasdaq (Composite, Nasdaq-100), each with recent history.
 try {
   hist.sp500 = mergeHistory(hist.sp500, parseCboeHistory(await (await get("https://cdn.cboe.com/api/global/delayed_quotes/charts/historical/_SPX.json")).json()));
   sources.sp500 = "Cboe";
 } catch (e) { log("Cboe SPX:", e.message); }
+try {
+  const pts = parseCboeHistory(await (await get("https://cdn.cboe.com/api/global/delayed_quotes/charts/historical/_DJX.json")).json(), 400, 100);
+  if (!pts.length) throw new Error("no rows");
+  hist.dow = mergeHistory(hist.dow, pts);
+  sources.dow = "Cboe (DJX × 100)";
+} catch (e) { log("Cboe DJX:", e.message); }
 const from = new Date(Date.now() - 400 * 86400000).toISOString().slice(0, 10);
 for (const [id, sym] of [["nasdaq", "COMP"], ["nasdaq100", "NDX"]]) {
   try {
@@ -118,7 +124,7 @@ writeFileSync(HIST, JSON.stringify(hist));
 if (series.length) {
   writeFileSync(OUT + "markets.json", JSON.stringify({
     updated: new Date().toISOString().slice(0, 10),
-    note: "Public end-of-day index levels and changes (%), the same for everyone. Sources: NSE, BSE, Cboe, Nasdaq, ECB, IBJA (gold and silver, without GST). No user data.",
+    note: "Public end-of-day index levels and changes (%), the same for everyone. Sources: NSE, BSE, Cboe (S&P 500; Dow from DJX × 100), Nasdaq, ECB, IBJA (gold and silver, without GST). No user data.",
     sources, series,
   }));
   log("markets.json:", series.map((s) => `${s.id} ${s.date} ${s.close} ${s.d1}%`).join(" · "));

@@ -11,6 +11,8 @@ test("Nasdaq and Cboe history", () => {
   assert.deepEqual(parseNasdaqHistory({ data: { tradesTable: { rows: [{ date: "11/05/2026", close: "24,315.00" }] } } }), [["2026-11-05", 24315]]);
   assert.deepEqual(parseNasdaqHistory({ data: null }), []);
   assert.deepEqual(parseCboeHistory({ data: [{ date: "2026-11-04", close: "7353.73" }, { date: "2026-11-05", close: "7428.05" }] }, 1), [["2026-11-05", 7428.05]]);
+  // Dow from DJX (1/100 of the index)
+  assert.deepEqual(mergeHistory({}, parseCboeHistory({ data: [{ date: "2026-11-12", close: "522.970000" }] }, 400, 100)), { "2026-11-12": 52297 });
 });
 test("history merge and summary", () => {
   let h = mergeHistory({}, [["2025-11-05", 80], ["2026-10-06", 90], ["2026-10-29", 95], ["2026-11-04", 98]]);
