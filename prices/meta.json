@@ -4,11 +4,11 @@
     "count": 5389,
     "source": "NSE + BSE"
   },
-  "checked": "2026-11-27",
+  "checked": "2026-11-28",
   "note": "Public end-of-day data only, the same for everyone. mf/eq: [price, YYYY-MM-DD(, symbol)] by ISIN; us: [close USD, date] by ticker; fx: [rupees per unit, date] by currency. No user data.",
   "mf": {
-    "date": "2026-11-27",
-    "count": 18008,
+    "date": "2026-11-28",
+    "count": 17914,
     "source": "AMFI"
   },
   "fx": {
@@ -17,8 +17,8 @@
     "source": "ECB"
   },
   "us": {
-    "date": "2026-11-26",
-    "count": 7374,
+    "date": "2026-11-27",
+    "count": 7372,
     "source": "Nasdaq screener"
   }
 }
